@@ -158,7 +158,7 @@ def main():
                     local.close()
                     print("Unsubscribed from meshtastic.receive")
                     
-                    local.reconnect()
+                    local = reconnect()
                     pub.subscribe(on_receive_wrapper, "meshtastic.receive")
                     print("Resubscribed to meshtastic.receive")
                     
