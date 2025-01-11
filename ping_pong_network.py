@@ -1,6 +1,6 @@
 import time
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pubsub import pub
 from meshtastic.tcp_interface import TCPInterface
 from meshtastic import portnums_pb2
@@ -98,7 +98,7 @@ def reconnect():
             print(f"Reconnect failed: {e}. Retrying in 5 seconds...")
             time.sleep(5)
 
-def main():
+'''def main():
     """Main function to initialize and maintain Meshtastic device connection."""
     print(f"Connecting to Meshtastic device at IP: {meshtastic_ip}, Port: {meshtastic_port}")
     local = reconnect() 
@@ -117,6 +117,54 @@ def main():
             try:
                 sys.stdout.flush()
                 time.sleep(1)
+            except (BrokenPipeError, OSError) as e:
+                print(f"Connection error occurred: {e}. Attempting to reconnect...")
+                pub.unsubscribe(on_receive_wrapper, "meshtastic.receive")
+                local.close()
+
+                local = reconnect()
+                pub.subscribe(on_receive_wrapper, "meshtastic.receive")
+    except KeyboardInterrupt:
+        print("Script terminated by user")
+        local.close()'''
+
+def main():
+    """Main function to initialize and maintain Meshtastic device connection."""
+    print(f"Connecting to Meshtastic device at IP: {meshtastic_ip}, Port: {meshtastic_port}")
+    local = reconnect()
+    node_info = get_node_info(local)
+    node_list = parse_node_info(node_info)
+
+    def on_receive_wrapper(packet, interface):
+        """Wrapper to pass node_list and node_info to the on_receive callback."""
+        on_receive(packet, interface, node_list, node_info)
+
+    pub.subscribe(on_receive_wrapper, "meshtastic.receive")
+    print("Subscribed to meshtastic.receive")
+
+    # Set the timer for 10 minutes
+    next_resubscribe_time = datetime.now() + timedelta(minutes=10)
+
+    try:
+        while True:
+            try:
+                sys.stdout.flush()
+                time.sleep(1)
+
+                # Checking if 10 minutes have passed
+                if datetime.now() >= next_resubscribe_time:
+                    print("10 minutes passed. Resubscribing...")
+                    pub.unsubscribe(on_receive_wrapper, "meshtastic.receive")
+                    local.close()
+                    print("Unsubscribed from meshtastic.receive")
+                    
+                    local.reconnect()
+                    pub.subscribe(on_receive_wrapper, "meshtastic.receive")
+                    print("Resubscribed to meshtastic.receive")
+                    
+                    # Timer reset
+                    next_resubscribe_time = datetime.now() + timedelta(minutes=10)
+
             except (BrokenPipeError, OSError) as e:
                 print(f"Connection error occurred: {e}. Attempting to reconnect...")
                 pub.unsubscribe(on_receive_wrapper, "meshtastic.receive")
